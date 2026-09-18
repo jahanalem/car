@@ -22,6 +22,15 @@
     depends_on:
       - postgres
 
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    environment:
+      MEILI_MASTER_KEY: masterkey
+    ports:
+      - "7700:7700"
+    volumes:
+      - meilisearch_data:/meili_data
 volumes:
   postgres_data:
   pgadmin_data:
+  meilisearch_data:

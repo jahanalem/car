@@ -4,6 +4,7 @@ using AuctionService.Entities;
 using Mapster;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 
 namespace AuctionService.Controllers
 {
@@ -12,9 +13,25 @@ namespace AuctionService.Controllers
     public class AuctionsController(AuctionDbContext context) : ControllerBase
     {
         [HttpGet]
-        public async Task<ActionResult<List<AuctionDto>>> GetAuctions()
+        public async Task<ActionResult<List<AuctionDto>>> GetAuctions(string? date)
         {
-            var auctions = await context.Auctions
+            var query = context.Auctions.AsQueryable();
+
+            if (!string.IsNullOrEmpty(date))
+            {
+                if (!DateTime.TryParse(date,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AdjustToUniversal
+                    | System.Globalization.DateTimeStyles.AssumeUniversal,
+                    out var parsedDate))
+                {
+                    return BadRequest("Invalid date format. Please use a valid date.");
+                }
+
+                query = query.Where(x => x.UpdatedAt > parsedDate);
+            }
+
+            var auctions = await query
                 .OrderBy(x => x.Item.Make)
                 .ThenBy(x => x.Item.Model)
                 .ProjectToType<AuctionDto>()
@@ -46,7 +63,7 @@ namespace AuctionService.Controllers
             context.Auctions.Add(auction);
             await context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetAuction), 
+            return CreatedAtAction(nameof(GetAuction),
                 new { id = auction.Id }, auction.Adapt<AuctionDto>());
         }
 
@@ -59,10 +76,12 @@ namespace AuctionService.Controllers
             {
                 return NotFound();
             }
-            if(auction.CurrentHighBid > 0)
+            if (auction.CurrentHighBid > 0)
             {
                 return BadRequest("Cannot update auction with bids.");
             }
+
+            auction.UpdatedAt = DateTime.UtcNow;
 
             updateAuctionDto.Adapt(auction.Item);
 
@@ -79,7 +98,7 @@ namespace AuctionService.Controllers
             {
                 return NotFound();
             }
-            if(auction.CurrentHighBid > 0)
+            if (auction.CurrentHighBid > 0)
             {
                 return BadRequest("Cannot delete auction with bids.");
             }
